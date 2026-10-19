@@ -9,6 +9,7 @@ import java.util.Scanner;
  *   c  → إنشاء كتاب جديد وحفظه في قاعدة البيانات
  *   l  → عرض الكتب المحفوظة (10 كتب في كل صفحة)
  *   d  → حذف كتاب عن طريق رقمه (ID)
+ *   s  → البحث عن كتب بالعنوان أو اسم المؤلف (10 نتايج في كل صفحة)
  *   u  → تحديث عدد الصفحات المقروءة لكتاب عن طريق رقمه (ID)
  *   q  → الخروج من البرنامج
  *
@@ -46,6 +47,7 @@ public class Main {
             System.out.println("\n===== برنامج الكتب =====");
             System.out.println("اكتب c لإنشاء كتاب");
             System.out.println("اكتب l لعرض الكتب");
+            System.out.println("اكتب s للبحث عن كتاب");
             System.out.println("اكتب u لتحديث الصفحات المقروءة");
             System.out.println("اكتب d لحذف كتاب");
             System.out.println("اكتب q للخروج");
@@ -63,6 +65,10 @@ public class Main {
                 // المستخدم اختار عرض الكتب: ننادي على دالة العرض
                 showBooks(scanner, libraryRepository);
 
+            } else if (choice.equals("s")) {
+                // المستخدم اختار البحث: ننادي على دالة البحث
+                searchBooks(scanner, libraryRepository);
+
             } else if (choice.equals("u")) {
                 // المستخدم اختار تحديث الصفحات المقروءة: ننادي على دالة التحديث
                 updatePagesRead(scanner, bookRepository);
@@ -78,7 +84,7 @@ public class Main {
 
             } else {
                 // المستخدم كتب حاجة غير c أو l أو q: ننبهه ونرجع نعرض القائمة تاني
-                System.out.println("اختيار غير صحيح، اكتب c أو l أو u أو d أو q فقط.");
+                System.out.println("اختيار غير صحيح، اكتب c أو l أو s أو u أو d أو q فقط.");
             }
         }
 
@@ -273,6 +279,94 @@ public class Main {
         } catch (Exception e) {
             // لو حصلت مشكلة في الاتصال بالقاعدة نطبعها
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * دالة بتسأل المستخدم عن نص البحث، وتعرض الكتب المطابقة (10 في كل صفحة)
+     * وبتخلي المستخدم يتنقل بين صفحات النتايج.
+     *
+     * النص ممكن يكون العنوان أو جزء منه، أو اسم المؤلف أو جزء منه،
+     * أو الاتنين مع بعض (مثلًا: clean martin).
+     *
+     * الأوامر جوه العرض:
+     *   n → الصفحة التالية
+     *   p → الصفحة السابقة
+     *   b → الرجوع للقائمة الرئيسية
+     *
+     * @param scanner           الأداة اللي بنقرأ بيها من الكيبورد
+     * @param libraryRepository الكائن اللي بننادي منه دالة search
+     */
+    private static void searchBooks(Scanner scanner, LibraryRepository libraryRepository) {
+
+        // نسأل المستخدم عن نص البحث
+        System.out.print("اكتب العنوان أو اسم المؤلف (أو جزء منهم): ");
+        String text = scanner.nextLine().trim();
+
+        // لو المستخدم مكتبش حاجة نرجع للقائمة (بدل ما نعرض كل الكتب، ده دور الاختيار l)
+        if (text.isEmpty()) {
+            System.out.println("لم تكتب نص للبحث.");
+            return;
+        }
+
+        // رقم الصفحة الحالية من نتايج البحث، بنبدأ من الأولى
+        int currentPage = 1;
+
+        // نفضل نعرض صفحات النتايج لحد ما المستخدم يختار الرجوع
+        while (true) {
+            try {
+                // نسأل القاعدة عن عدد صفحات نتايج البحث الكلي
+                int totalPages = libraryRepository.getSearchTotalPages(text);
+
+                // لو مفيش ولا نتيجة نبلغ المستخدم ونرجع للقائمة
+                if (totalPages == 0) {
+                    System.out.println("لا توجد كتب مطابقة للبحث.");
+                    return;
+                }
+
+                // نتأكد إن رقم الصفحة الحالية جوه الحدود الصحيحة (من 1 لحد آخر صفحة)
+                if (currentPage > totalPages) {
+                    currentPage = totalPages;
+                }
+                if (currentPage < 1) {
+                    currentPage = 1;
+                }
+
+                // نجيب نتايج الصفحة الحالية (10 كتب على الأكثر) باستخدام الدالة search
+                List<Book> books = libraryRepository.search(text, currentPage);
+
+                // نعرض رقم الصفحة وكل كتب الصفحة
+                System.out.println("\n----- نتايج البحث: صفحة " + currentPage + " من " + totalPages + " -----");
+                for (Book book : books) {
+                    System.out.println(book);
+                    System.out.println();
+                }
+
+            } catch (Exception e) {
+                // لو حصلت مشكلة في الاتصال بالقاعدة نطبعها ونرجع للقائمة
+                e.printStackTrace();
+                return;
+            }
+
+            // نسأل المستخدم عايز يعمل إيه بعد كده
+            System.out.print("n = التالية | p = السابقة | b = رجوع : ");
+            String command = scanner.nextLine().trim().toLowerCase();
+
+            if (command.equals("n")) {
+                // الصفحة التالية (لو كنا في آخر صفحة، الكود فوق هيرجعنا لآخر صفحة)
+                currentPage++;
+
+            } else if (command.equals("p")) {
+                // الصفحة السابقة (لو كنا في الأولى، الكود فوق هيخلينا فيها)
+                currentPage--;
+
+            } else if (command.equals("b")) {
+                // الرجوع للقائمة الرئيسية
+                return;
+
+            } else {
+                System.out.println("اختيار غير صحيح، اكتب n أو p أو b فقط.");
+            }
         }
     }
 

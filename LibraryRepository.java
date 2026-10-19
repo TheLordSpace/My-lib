@@ -126,4 +126,180 @@ public class LibraryRepository {
 
         return 0;
     }
+
+    /**
+     * البحث عن كتب بالعنوان أو اسم المؤلف أو الاتنين مع بعض، وبترجع الكتب على صفحات (10 في كل صفحة).
+     *
+     * طريقة البحث:
+     *  - النص بيتقسم لكلمات (بالمسافات).
+     *  - كل كلمة لازم تكون موجودة في العنوان أو في اسم المؤلف (جزء من الكلمة كفاية).
+     *  - مش مهم حروف كبيرة ولا صغيرة.
+     *
+     * أمثلة:
+     *  - "clean"          → كل كتاب عنوانه أو مؤلفه فيه clean
+     *  - "martin"         → كل كتاب مؤلفه فيه martin
+     *  - "clean martin"   → الكتب اللي فيها clean وmartin (في العنوان أو المؤلف)
+     *
+     * لو النص فاضي، بترجع كل الكتب بالصفحات زي getAllBooks.
+     *
+     * @param text النص المطلوب البحث عنه
+     * @param page رقم الصفحة (بنبدأ من 1)
+     * @return قائمة الكتب المطابقة في الصفحة دي (10 على الأكثر، وفاضية لو مفيش نتايج)
+     * @throws SQLException لو حصلت مشكلة في الاتصال أو القراءة
+     */
+    public List<Book> search(String text, int page) throws SQLException {
+
+        // لو رقم الصفحة أقل من 1 نعتبرها الصفحة الأولى
+        if (page < 1) {
+            page = 1;
+        }
+
+        // نقسم نص البحث لكلمات
+        String[] words = splitWords(text);
+
+        // لو مفيش كلمات (النص فاضي) نرجع كل الكتب بالصفحات
+        if (words.length == 0) {
+            return getAllBooks(page);
+        }
+
+        // نفس حساب الصفحات اللي في getAllBooks: نتخطى كتب الصفحات اللي قبلها
+        int offset = (page - 1) * PAGE_SIZE;
+
+        // أمر SQL: نفس getAllBooks بس مع شرط WHERE بيفلتر الكتب المطابقة للكلمات
+        String sql = "SELECT id, title, author, total_pages, pages_read "
+                + "FROM books WHERE " + buildCondition(words)
+                + " ORDER BY id LIMIT ? OFFSET ?";
+
+        // القائمة اللي هنجمع فيها الكتب المطابقة
+        List<Book> books = new ArrayList<>();
+
+        try (Connection connection = DriverManager.getConnection(url, user, password);
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // نحط الكلمات مكان علامات الاستفهام، وبترجع رقم علامة الاستفهام اللي بعدها
+            int next = bindWords(statement, words);
+
+            // بعد الكلمات بييجي LIMIT وOFFSET
+            statement.setInt(next, PAGE_SIZE);
+            statement.setInt(next + 1, offset);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    // نحول كل صف لكتاب ونحط رقمه (ID)
+                    Book book = new Book(
+                            resultSet.getString("title"),
+                            resultSet.getString("author"),
+                            resultSet.getInt("total_pages"),
+                            resultSet.getInt("pages_read")
+                    );
+                    book.setId(resultSet.getInt("id"));
+                    books.add(book);
+                }
+            }
+        }
+
+        return books;
+    }
+
+    /**
+     * نسخة مختصرة من search: بترجع الصفحة الأولى بس (أول 10 نتايج).
+     */
+    public List<Book> search(String text) throws SQLException {
+        return search(text, 1);
+    }
+
+    /**
+     * بترجع عدد صفحات نتايج البحث الكلي (10 كتب في الصفحة).
+     * مفيدة عشان تعرض "صفحة 1 من 3" وتعرف إمتى توقف.
+     * لو النص فاضي بترجع عدد صفحات كل الكتب.
+     *
+     * @param text نفس نص البحث اللي بتبعته لدالة search
+     * @return عدد الصفحات (صفر لو مفيش نتايج)
+     */
+    public int getSearchTotalPages(String text) throws SQLException {
+
+        String[] words = splitWords(text);
+
+        // لو النص فاضي يبقى النتايج هي كل الكتب
+        if (words.length == 0) {
+            return getTotalPages();
+        }
+
+        // أمر SQL بيعد الكتب المطابقة بس
+        String sql = "SELECT COUNT(*) FROM books WHERE " + buildCondition(words);
+
+        try (Connection connection = DriverManager.getConnection(url, user, password);
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            bindWords(statement, words);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    int totalMatches = resultSet.getInt(1);
+                    // نقسم على 10 مع التقريب لأعلى
+                    return (int) Math.ceil((double) totalMatches / PAGE_SIZE);
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    // ==================== دوال مساعدة للبحث (خاصة بالكلاس ده) ====================
+
+    /**
+     * بتقسم نص البحث لكلمات بالمسافات.
+     * لو النص null أو فاضي بترجع مصفوفة فاضية.
+     */
+    private String[] splitWords(String text) {
+        if (text == null || text.isBlank()) {
+            return new String[0];
+        }
+        // trim بتشيل المسافات من الأطراف، و\\s+ معناها "مسافة واحدة أو أكتر"
+        return text.trim().split("\\s+");
+    }
+
+    /**
+     * بتبني شرط SQL: لكل كلمة لازم تكون في العنوان أو في المؤلف، وكل الكلمات لازم تتحقق (AND).
+     * ILIKE معناها "LIKE" بس من غير حساسية لحروف كبيرة أو صغيرة.
+     * مثال لكلمتين: (title ILIKE ? OR author ILIKE ?) AND (title ILIKE ? OR author ILIKE ?)
+     */
+    private String buildCondition(String[] words) {
+        StringBuilder condition = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) {
+                condition.append(" AND ");
+            }
+            condition.append("(title ILIKE ? OR author ILIKE ?)");
+        }
+        return condition.toString();
+    }
+
+    /**
+     * بتحط كل كلمة مكان علامات الاستفهام اللي في الشرط (علامتين لكل كلمة: العنوان والمؤلف).
+     * علامتا % حوالين الكلمة معناها "أي نص قبلها وبعدها"، فالجزء من الكلمة كفاية.
+     *
+     * @return رقم علامة الاستفهام اللي بعد آخر كلمة (عشان نكمل بعدها LIMIT وOFFSET)
+     */
+    private int bindWords(PreparedStatement statement, String[] words) throws SQLException {
+        int index = 1;
+        for (String word : words) {
+            String pattern = "%" + escapeLike(word) + "%";
+            statement.setString(index++, pattern); // للعنوان
+            statement.setString(index++, pattern); // للمؤلف
+        }
+        return index;
+    }
+
+    /**
+     * بتعطّل الرموز الخاصة في LIKE (% و _ و \) عشان لو المستخدم كتبها
+     * تتعامل كحروف عادية مش كرموز بحث.
+     * مثال: لو كتب "100%" هندوّر على النص "100%" بالظبط مش على أي حاجة بتبدأ بـ 100.
+     */
+    private String escapeLike(String word) {
+        return word
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+    }
 }
