@@ -144,4 +144,49 @@ public class BookRepository {
             return deletedRows > 0;
         }
     }
+
+    /**
+     * دالة بتحدّث عدد الصفحات المقروءة لكتاب معين عن طريق رقمه (id).
+     * لو الرقم الجديد أكبر من عدد صفحات الكتاب الكلي، بيتحط عدد الصفحات الكلي
+     * (لأن مينفعش تقرأ صفحات أكتر من اللي في الكتاب)، زي ما بتعمل دالة إنشاء Book.
+     *
+     * @param id        رقم الكتاب المطلوب تحديثه
+     * @param pagesRead عدد الصفحات المقروءة الجديد (لازم يكون صفر أو أكبر)
+     * @return عدد الصفحات المقروءة اللي اتخزن فعلًا في القاعدة،
+     *         أو -1 لو مفيش كتاب بالرقم ده
+     * @throws SQLException لو حصلت مشكلة في الاتصال أو في التحديث
+     */
+    public int updatePagesRead(int id, int pagesRead) throws SQLException {
+
+        // نتأكد إن الرقم مش سالب قبل ما نكلم القاعدة
+        if (pagesRead < 0) {
+            throw new IllegalArgumentException("عدد الصفحات المقروءة لا يمكن أن يكون سالبًا");
+        }
+
+        // أمر SQL بيحدّث عمود pages_read للكتاب اللي رقمه (id).
+        // LEAST(?, total_pages) بتختار الأصغر بين الرقم الجديد وعدد الصفحات الكلي،
+        // فمستحيل الصفحات المقروءة تعدّي صفحات الكتاب.
+        // RETURNING pages_read بترجعلنا القيمة اللي اتخزنت فعلًا بعد التحديث.
+        String sql = "UPDATE books SET pages_read = LEAST(?, total_pages) "
+                + "WHERE id = ? RETURNING pages_read";
+
+        try (Connection connection = DriverManager.getConnection(url, user, password);
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // نحط القيم مكان علامات الاستفهام بالترتيب
+            statement.setInt(1, pagesRead); // عدد الصفحات المقروءة الجديد
+            statement.setInt(2, id);        // رقم الكتاب
+
+            // ننفذ الأمر ونستلم الصف المحدَّث (لو لقى الكتاب)
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    // الكتاب موجود واتحدّث: نرجع القيمة اللي اتخزنت
+                    return resultSet.getInt("pages_read");
+                }
+            }
+        }
+
+        // مفيش صف رجع يعني مفيش كتاب بالرقم ده
+        return -1;
+    }
 }

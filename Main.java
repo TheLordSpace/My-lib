@@ -9,6 +9,7 @@ import java.util.Scanner;
  *   c  → إنشاء كتاب جديد وحفظه في قاعدة البيانات
  *   l  → عرض الكتب المحفوظة (10 كتب في كل صفحة)
  *   d  → حذف كتاب عن طريق رقمه (ID)
+ *   u  → تحديث عدد الصفحات المقروءة لكتاب عن طريق رقمه (ID)
  *   q  → الخروج من البرنامج
  *
  * ملحوظة: لازم ملفات Book.java وBookRepository.java وLibraryRepository.java
@@ -45,6 +46,7 @@ public class Main {
             System.out.println("\n===== برنامج الكتب =====");
             System.out.println("اكتب c لإنشاء كتاب");
             System.out.println("اكتب l لعرض الكتب");
+            System.out.println("اكتب u لتحديث الصفحات المقروءة");
             System.out.println("اكتب d لحذف كتاب");
             System.out.println("اكتب q للخروج");
             System.out.print("اختيارك: ");
@@ -61,6 +63,10 @@ public class Main {
                 // المستخدم اختار عرض الكتب: ننادي على دالة العرض
                 showBooks(scanner, libraryRepository);
 
+            } else if (choice.equals("u")) {
+                // المستخدم اختار تحديث الصفحات المقروءة: ننادي على دالة التحديث
+                updatePagesRead(scanner, bookRepository);
+
             } else if (choice.equals("d")) {
                 // المستخدم اختار حذف كتاب: ننادي على دالة الحذف
                 deleteBook(scanner, bookRepository);
@@ -72,7 +78,7 @@ public class Main {
 
             } else {
                 // المستخدم كتب حاجة غير c أو l أو q: ننبهه ونرجع نعرض القائمة تاني
-                System.out.println("اختيار غير صحيح، اكتب c أو l أو d أو q فقط.");
+                System.out.println("اختيار غير صحيح، اكتب c أو l أو u أو d أو q فقط.");
             }
         }
 
@@ -230,6 +236,39 @@ public class Main {
                 System.out.println("تم حذف الكتاب رقم " + id + " بنجاح.");
             } else {
                 System.out.println("لا يوجد كتاب بالرقم " + id + ".");
+            }
+        } catch (Exception e) {
+            // لو حصلت مشكلة في الاتصال بالقاعدة نطبعها
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * دالة بتحدّث عدد الصفحات المقروءة لكتاب عن طريق رقمه (ID).
+     * رقم كل كتاب بيظهر فوق الكتاب لما تعرض الكتب بالاختيار l.
+     *
+     * @param scanner        الأداة اللي بنقرأ بيها من الكيبورد
+     * @param bookRepository الكائن اللي بننادي منه دالة updatePagesRead
+     */
+    private static void updatePagesRead(Scanner scanner, BookRepository bookRepository) {
+
+        // نسأل المستخدم عن رقم الكتاب
+        int id = readInt(scanner, "رقم الكتاب (ID): ", false);
+
+        // نسأل عن عدد الصفحات المقروءة الجديد (الإجمالي مش اللي اتقرأ النهاردة بس)
+        int pagesRead = readInt(scanner, "عدد الصفحات المقروءة الجديد: ", false);
+
+        try {
+            // ننادي updatePagesRead: بترجع القيمة اللي اتخزنت فعلًا، أو -1 لو الكتاب مش موجود
+            int stored = bookRepository.updatePagesRead(id, pagesRead);
+
+            if (stored == -1) {
+                System.out.println("لا يوجد كتاب بالرقم " + id + ".");
+            } else if (stored < pagesRead) {
+                // الرقم اللي كتبه المستخدم أكبر من صفحات الكتاب، فاتحط عدد الصفحات الكلي
+                System.out.println("الرقم أكبر من عدد صفحات الكتاب، فتم تسجيل " + stored + " (كل الصفحات).");
+            } else {
+                System.out.println("تم التحديث: الصفحات المقروءة الآن " + stored + ".");
             }
         } catch (Exception e) {
             // لو حصلت مشكلة في الاتصال بالقاعدة نطبعها
