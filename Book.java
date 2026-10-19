@@ -4,6 +4,9 @@
  * الكلاس ده بيمثل كتاب في الحياة الحقيقية.
  * زي ما الكتاب ليه اسم ومؤلف وعدد صفحات، الكلاس برضه بيخزن
  * نفس المعلومات دي، وبيحسب لك نسبة التقدم في القراءة.
+ *
+ * ملحوظة: شكل عرض الكتاب (الإطار وشريط التقدم) مسؤولية كلاس BookFormatter،
+ * مش مسؤولية Book.
  */
 public class Book {
 
@@ -116,87 +119,15 @@ public class Book {
         return ((double) pagesRead / totalPages) * 100;
     }
 
-    // ==================== دالة toString (العرض الشكلي) ====================
+    // ==================== دالة toString ====================
 
     /**
-     * بتحول بيانات الكتاب لنص منسق شكله شبه الرسومي (إطار + شريط تقدم).
-     * الدالة دي بتشتغل تلقائيًا لما تعمل System.out.println(book).
+     * بتحول الكتاب لنص منسق. الدالة دي بتشتغل تلقائيًا لما تعمل System.out.println(book).
+     * هي بس بتسلّم الشغل لـ BookFormatter اللي مسؤول عن شكل العرض.
      */
     @Override
     public String toString() {
-        // طول شريط التقدم: 20 خانة
-        int barLength = 20;
-
-        // نحسب كام خانة من الشريط هتتملي حسب النسبة
-        // مثال: لو النسبة 50% يبقى 10 خانات من 20 تتملي
-        int filled = (int) Math.round(getProgressPercentage() / 100 * barLength);
-
-        // نبني شريط التقدم: "█" للجزء المقروء و"░" للجزء المتبقي
-        StringBuilder bar = new StringBuilder();
-        for (int i = 0; i < barLength; i++) {
-            if (i < filled) {
-                bar.append("█"); // خانة ممتلئة (اتقرأت)
-            } else {
-                bar.append("░"); // خانة فاضية (لسه)
-            }
-        }
-
-        // نجهز سطور الإطار (كل سطر نص عادي)
-        String line1 = "Title    : " + title;
-        String line2 = "Author   : " + author;
-        String line3 = "Pages    : " + pagesRead + " / " + totalPages;
-        String line4 = "Progress : " + bar + " " + String.format("%.1f", getProgressPercentage()) + "%";
-
-        // سطر رقم الكتاب (ID): بيظهر بس لو الكتاب محفوظ في القاعدة (رقمه أكبر من صفر)
-        String idLine = "ID       : " + id;
-
-        // نحدد أطول سطر عشان نظبط عرض الإطار على حسبه
-        int width = Math.max(
-                Math.max(line1.length(), line2.length()),
-                Math.max(line3.length(), line4.length())
-        );
-
-        // لو سطر الـ ID هيظهر، نتأكد إن الإطار واسع كفاية له
-        if (id > 0) {
-            width = Math.max(width, idLine.length());
-        }
-
-        // نعمل الخط الأفقي للإطار بتكرار الرمز "═" بعدد العرض
-        String border = "═".repeat(width + 2);
-
-        // نجمع كل حاجة في نص واحد: الحد العلوي + السطور + الحد السفلي
-        // %-Ns معناها: اطبع النص وكمّل بمسافات لحد N حرف (عشان الحافة اليمين تتساوى)
-        String format = "║ %-" + width + "s ║\n";
-        StringBuilder sb = new StringBuilder();
-        sb.append("╔").append(border).append("╗\n");
-        // نضيف سطر الـ ID أول سطر في الإطار (لو الكتاب محفوظ في القاعدة)
-        if (id > 0) {
-            sb.append(String.format(format, idLine));
-        }
-        sb.append(String.format(format, line1));
-        sb.append(String.format(format, line2));
-        sb.append(String.format(format, line3));
-        sb.append(String.format(format, line4));
-        sb.append("╚").append(border).append("╝");
-
-        return sb.toString();
+        return BookFormatter.format(this);
     }
 
-    // ==================== دالة main للتجربة ====================
-
-    /**
-     * نقطة بداية البرنامج: بنجرب فيها الكلاس بكتابين.
-     */
-    public static void main(String[] args) {
-        // كتاب أول: بعتنا الصفحات المقروءة (75 من 300)
-        Book book1 = new Book("Clean Code", "Robert C. Martin", 300, 75);
-
-        // كتاب تاني: من غير الصفحات المقروءة، فهتبقى صفر تلقائيًا
-        Book book2 = new Book("Effective Java", "Joshua Bloch", 416);
-
-        // طباعة الكتابين (بتنادي toString تلقائيًا)
-        System.out.println(book1);
-        System.out.println();
-        System.out.println(book2);
-    }
 }
