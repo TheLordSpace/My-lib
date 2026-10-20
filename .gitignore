@@ -3,3 +3,5 @@ run.sh
 *.log
 *.logs
 out/
+*.html
+*.css
